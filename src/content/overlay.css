@@ -82,3 +82,29 @@ td.jev-host {
 /* Unread rows render their subject bold; keep the badges at normal weight. */
 tr.zA .jev-badges,
 tr.zE .jev-badges { font-weight: 400; }
+
+.jev-notice {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  max-width: 360px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  font: 13px/1.4 system-ui, sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.jev-notice button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}

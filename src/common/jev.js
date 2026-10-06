@@ -1,8 +1,9 @@
-// TypeSafe Jev client and the email rubric.
+// Jev client (TypeSafe or OpenRouter, whichever key is set) and the email rubric.
 //
 // One request per email carries every question: Jev ingests the state once and
 // evaluates the questions against it in parallel, so extra narrow questions
-// cost little. https://docs.typesafe.ai/api
+// cost little. https://docs.typesafe.ai/api and
+// https://openrouter.ai/docs/guides/community/jev (same System One format).
 //
 // Jev reads literally and struggles when one question hides several judgments
 // (https://docs.typesafe.ai/model-jaggedness/jev-1.13), so "spam" is never
@@ -10,7 +11,22 @@
 // facts Gmail already knows: whether the sender's domain passed DMARC, and
 // whether Gmail's own filter put the message in Spam.
 
+import { PROVIDERS, resolveProvider } from './settings.js';
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** An API failure the UI can explain: `code` is 'auth', 'credits', 'rate_limit' or null. */
+export class JevError extends Error {
+  constructor(message, { status, code = null } = {}) {
+    super(message);
+    this.name = 'JevError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// Bad key and empty balance fail every request the same way, so callers stop early.
+export const isFatal = (err) => err?.code === 'auth' || err?.code === 'credits';
 
 export const PRIORITY_LEVELS = ['Low', 'Normal', 'High'];
 
@@ -21,7 +37,8 @@ export function buildQuestions(categories) {
   const categoryCriteria = {};
   for (const c of categories) {
     const name = (c.name || '').trim();
-    if (name) categoryCriteria[name] = (c.description || '').trim() || null;
+    // OpenRouter rejects empty outcome descriptions; TypeSafe accepts any.
+    if (name) categoryCriteria[name] = (c.description || '').trim() || `Email that belongs in the "${name}" category.`;
   }
 
   return {
@@ -291,8 +308,8 @@ export function explainSpam(result) {
   return parts.join(' · ');
 }
 
-async function post(settings, path, body, { signal } = {}) {
-  const url = `${settings.jevBaseUrl.replace(/\/$/, '')}${path}`;
+async function post(provider, path, body, { signal } = {}) {
+  const url = `${provider.baseUrl}${path}`;
 
   for (let attempt = 0; ; attempt++) {
     let res;
@@ -300,7 +317,7 @@ async function post(settings, path, body, { signal } = {}) {
       res = await fetch(url, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${settings.jevApiKey.trim()}`,
+          Authorization: `Bearer ${provider.apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(body),
@@ -325,8 +342,32 @@ async function post(settings, path, body, { signal } = {}) {
       continue;
     }
 
-    throw new Error(`Jev ${res.status}: ${await errorDetail(res)}`);
+    throw await apiError(provider, res);
   }
+}
+
+async function apiError(provider, res) {
+  const detail = await errorDetail(res);
+  const name = provider.label;
+  if (res.status === 401) {
+    return new JevError(`${name} rejected the API key (401). Check the key in Settings or .env.`, { status: 401, code: 'auth' });
+  }
+  if (res.status === 402) {
+    const where = provider.id === 'openrouter' ? 'openrouter.ai/settings/credits' : 'console.typesafe.ai';
+    return new JevError(`${name} account or key is out of credits (402). Add credits at ${where} or raise the key's limit.`, { status: 402, code: 'credits' });
+  }
+  if (res.status === 429) {
+    return new JevError(`${name} rate limit hit (429). Lower "Parallel requests" in Settings or try again in a minute.`, { status: 429, code: 'rate_limit' });
+  }
+  return new JevError(`${name} ${res.status}: ${detail}`, { status: res.status });
+}
+
+function requireProvider(settings) {
+  const provider = resolveProvider(settings);
+  if (!provider) {
+    throw new JevError('No API key set. Add a TypeSafe or OpenRouter key in Settings or .env.', { code: 'auth' });
+  }
+  return provider;
 }
 
 async function errorDetail(res) {
@@ -340,11 +381,12 @@ async function errorDetail(res) {
 }
 
 export async function classify(settings, email, { signal } = {}) {
+  const provider = requireProvider(settings);
   const data = await post(
-    settings,
+    provider,
     '/systemone',
     {
-      model: settings.jevModel,
+      model: provider.model,
       state: buildState(email),
       questions: buildQuestions(settings.categories)
     },
@@ -354,18 +396,24 @@ export async function classify(settings, email, { signal } = {}) {
   return {
     ...compose(data.answers || {}, email),
     rubric: rubricId(settings.categories),
-    model: data.model || settings.jevModel,
+    model: data.model || provider.model,
     inputTokens: data.usage?.input_tokens ?? 0
   };
 }
 
-/** Cheap credential check for the Settings dialog. */
-export async function listModels(settings) {
-  const url = `${settings.jevBaseUrl.replace(/\/$/, '')}/models`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${settings.jevApiKey.trim()}` }
+/**
+ * Cheap credential check for the Settings dialog. OpenRouter returns the key's
+ * remaining limit; TypeSafe returns its model list.
+ */
+export async function checkKey(providerId, apiKey) {
+  const provider = { id: providerId, ...PROVIDERS[providerId], apiKey: apiKey.trim() };
+  const path = providerId === 'openrouter' ? '/key' : '/models';
+  const res = await fetch(`${provider.baseUrl}${path}`, {
+    headers: { Authorization: `Bearer ${provider.apiKey}` }
   });
-  if (!res.ok) throw new Error(`Jev ${res.status}: ${await errorDetail(res)}`);
+  if (!res.ok) throw await apiError(provider, res);
   const data = await res.json();
-  return data.models || [];
+  return providerId === 'openrouter'
+    ? { limitRemaining: data.data?.limit_remaining ?? null }
+    : { models: (data.models || []).map((m) => m.name) };
 }

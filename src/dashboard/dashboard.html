@@ -67,22 +67,34 @@
 
         <fieldset>
           <legend>Jev</legend>
+          <p class="hint">Either key works. Leave a field empty to use the key from the <code>.env</code> file instead. With both set, OpenRouter is used. Create a dedicated key with a spending limit.</p>
+          <p class="hint" id="s-provider"></p>
           <label>
-            API key
+            OpenRouter API key
+            <span class="hint">From <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">openrouter.ai/settings/keys</a>. Stored locally, only ever sent to openrouter.ai.</span>
+            <span class="row">
+              <input id="s-key-openrouter" type="password" placeholder="sk-or-v1-…" autocomplete="off" />
+              <button type="button" id="s-test-openrouter" class="ghost">Test</button>
+            </span>
+            <span class="test-result" id="s-test-result-openrouter"></span>
+          </label>
+          <label>
+            TypeSafe API key
             <span class="hint">From <a href="https://console.typesafe.ai/" target="_blank" rel="noreferrer">console.typesafe.ai</a>. Stored locally, only ever sent to api.typesafe.ai.</span>
             <span class="row">
-              <input id="s-key" type="password" placeholder="sk-…" autocomplete="off" />
-              <button type="button" id="s-test" class="ghost">Test</button>
+              <input id="s-key-typesafe" type="password" placeholder="sk-…" autocomplete="off" />
+              <button type="button" id="s-test-typesafe" class="ghost">Test</button>
             </span>
-            <span class="test-result" id="s-test-result"></span>
+            <span class="test-result" id="s-test-result-typesafe"></span>
           </label>
           <label>
             Model
+            <span class="hint">Leave empty for the latest Jev. <code>jev-1.13</code> pins a version on either provider.</span>
             <input id="s-model" type="text" placeholder="jev-latest" />
           </label>
           <label>
             Parallel requests
-            <span class="hint">Jev allows 1,200 requests/minute. Raise this to go faster, lower it if you see 429s.</span>
+            <span class="hint">Raise this to go faster, lower it if you see 429s.</span>
             <input id="s-concurrency" type="number" min="1" max="24" />
           </label>
         </fieldset>

@@ -5,8 +5,8 @@
 //      IndexedDB or the Jev key on its own. Its batches are small (whatever is
 //      on screen), so they comfortably fit a worker's lifetime.
 
-import { loadSettings } from '../common/settings.js';
-import { classify, rubricId, explainSpam } from '../common/jev.js';
+import { loadSettings, resolveProvider } from '../common/settings.js';
+import { classify, rubricId, explainSpam, isFatal } from '../common/jev.js';
 import { getByMatchKeys, putEmails } from '../common/db.js';
 
 const DASHBOARD_URL = chrome.runtime.getURL('src/dashboard/dashboard.html');
@@ -56,8 +56,8 @@ async function handleMessage(msg) {
   if (msg.type === 'overlay:config') {
     return {
       enabled: settings.overlayEnabled,
-      autoClassify: settings.overlayAutoClassify && Boolean(settings.jevApiKey.trim()),
-      hasKey: Boolean(settings.jevApiKey.trim())
+      autoClassify: settings.overlayAutoClassify && Boolean(resolveProvider(settings)),
+      hasKey: Boolean(resolveProvider(settings))
     };
   }
 
@@ -74,12 +74,13 @@ async function handleMessage(msg) {
   }
 
   if (msg.type === 'overlay:classify') {
-    if (!settings.jevApiKey.trim()) return { results: {}, error: 'No Jev API key set.' };
+    if (!resolveProvider(settings)) return { results: {}, error: 'No API key set. Add a TypeSafe or OpenRouter key in Settings or .env.' };
     if (!settings.overlayAutoClassify) return { results: {} };
 
     const items = (msg.items || []).slice(0, 40);
     const results = {};
     const rows = [];
+    let error = null;
 
     // On-screen batches stay modest so the worker is never mid-flight for long.
     const width = Math.min(settings.concurrency, 4);
@@ -125,13 +126,15 @@ async function handleMessage(msg) {
             });
           } catch (err) {
             console.warn('[jev-mail] overlay classify failed', err.message);
+            if (!error || isFatal(err)) error = err.message;
+            if (isFatal(err)) cursor = items.length;
           }
         }
       })
     );
 
     await putEmails(rows);
-    return { results };
+    return { results, error };
   }
 
   return { error: `Unknown message ${msg.type}` };

@@ -1,7 +1,7 @@
-import { loadSettings, saveSettings, DEFAULT_CATEGORIES, DEFAULTS } from '../common/settings.js';
+import { loadSettings, saveSettings, resolveProvider, DEFAULT_CATEGORIES, DEFAULTS } from '../common/settings.js';
 import { getToken, signOut, invalidateToken, redirectUrl } from '../common/auth.js';
 import { getAllEmails, clearEmails } from '../common/db.js';
-import { listModels, explainSpam } from '../common/jev.js';
+import { checkKey, explainSpam } from '../common/jev.js';
 import { syncInbox, classifyAll } from '../common/pipeline.js';
 
 const $ = (id) => document.getElementById(id);
@@ -81,7 +81,8 @@ function wireEvents() {
 
   $('s-cancel').addEventListener('click', () => $('settings').close());
   $('s-save').addEventListener('click', saveSettingsFromForm);
-  $('s-test').addEventListener('click', testJevKey);
+  $('s-test-openrouter').addEventListener('click', () => testJevKey('openrouter'));
+  $('s-test-typesafe').addEventListener('click', () => testJevKey('typesafe'));
   $('s-signout').addEventListener('click', async () => {
     await signOut();
     state.connected = false;
@@ -107,9 +108,9 @@ async function onStartStop() {
     return;
   }
   await runGuarded(async () => {
-    if (!state.settings.jevApiKey.trim()) {
+    if (!resolveProvider(state.settings)) {
       openSettings();
-      throw new Error('Add your Jev API key first.');
+      throw new Error('Add a TypeSafe or OpenRouter API key first.');
     }
     if (!state.emails.size) await doSync();
     await doClassify();
@@ -509,7 +510,7 @@ function setRunning(running) {
 function updateOnboarding() {
   const panel = $('onboarding');
   const needsClientId = !state.settings.googleClientId.trim();
-  const needsKey = !state.settings.jevApiKey.trim();
+  const needsKey = !resolveProvider(state.settings);
 
   if (!needsClientId && !needsKey && state.connected) {
     panel.hidden = true;
@@ -523,7 +524,7 @@ function updateOnboarding() {
     steps.push(`Paste the client ID into <b>Settings → Gmail</b>.`);
   }
   if (needsKey) {
-    steps.push(`Add your Jev API key from <a href="https://console.typesafe.ai/" target="_blank" rel="noreferrer">console.typesafe.ai</a> in <b>Settings</b>.`);
+    steps.push(`Get an API key from <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">OpenRouter</a> or <a href="https://console.typesafe.ai/" target="_blank" rel="noreferrer">TypeSafe</a> (a dedicated key with a spending limit), then paste it in <b>Settings</b> or put it in <code>.env</code> as <code>OPENROUTER_API_KEY</code> or <code>TYPESAFE_API_KEY</code>.`);
   }
   if (!state.connected) {
     steps.push(`Hit <b>Start</b> and approve read-only access to Gmail.`);
@@ -532,8 +533,8 @@ function updateOnboarding() {
   panel.hidden = false;
   panel.innerHTML = `
     <h2>Finish setup</h2>
-    <p>Jev Mail reads message metadata from Gmail and scores each one with TypeSafe's Jev model. Nothing leaves your browser except the sender, subject and preview line sent to api.typesafe.ai.</p>
-    ${needsClientId ? `<p><b>You may not need any of this.</b> With just a Jev API key, the in-Gmail badges already work — open <a href="https://mail.google.com/" target="_blank" rel="noreferrer">Gmail</a> and rows get classified as you scroll. The steps below only unlock this dashboard, which reads your whole inbox at once through the Gmail API.</p>` : ''}
+    <p>Jev Mail reads message metadata from Gmail and scores each one with TypeSafe's Jev model. Nothing leaves your browser except the sender, subject and preview line sent to the Jev provider you use (openrouter.ai or api.typesafe.ai).</p>
+    ${needsClientId ? `<p><b>You may not need any of this.</b> With just a TypeSafe or OpenRouter API key, the in-Gmail badges already work — open <a href="https://mail.google.com/" target="_blank" rel="noreferrer">Gmail</a> and rows get classified as you scroll. The steps below only unlock this dashboard, which reads your whole inbox at once through the Gmail API.</p>` : ''}
     <ol>${steps.map((s) => `<li>${s}</li>`).join('')}</ol>
     <div class="cta"><button type="button" class="primary" id="ob-settings">Open settings</button></div>
   `;
@@ -544,7 +545,12 @@ function updateOnboarding() {
 
 function openSettings() {
   const s = state.settings;
-  $('s-key').value = s.jevApiKey;
+  $('s-key-openrouter').value = s.openrouterApiKey;
+  $('s-key-typesafe').value = s.typesafeApiKey;
+  $('s-key-openrouter').placeholder = s.env?.OPENROUTER_API_KEY ? 'Using key from .env' : 'sk-or-v1-…';
+  $('s-key-typesafe').placeholder = s.env?.TYPESAFE_API_KEY ? 'Using key from .env' : 'sk-…';
+  const active = resolveProvider(s);
+  $('s-provider').textContent = active ? `Currently using ${active.label} (${active.model}).` : 'No key set yet.';
   $('s-model').value = s.jevModel;
   $('s-concurrency').value = s.concurrency;
   $('s-query').value = s.gmailQuery;
@@ -554,8 +560,10 @@ function openSettings() {
   $('s-overlay').checked = s.overlayEnabled;
   $('s-overlay-auto').checked = s.overlayAutoClassify;
   $('s-categories').value = s.categories.map((c) => `${c.name}: ${c.description || ''}`.trim()).join('\n');
-  $('s-test-result').textContent = '';
-  $('s-test-result').className = 'test-result';
+  for (const id of ['openrouter', 'typesafe']) {
+    $(`s-test-result-${id}`).textContent = '';
+    $(`s-test-result-${id}`).className = 'test-result';
+  }
   $('settings').showModal();
 }
 
@@ -576,7 +584,8 @@ async function saveSettingsFromForm() {
   const previousClientId = state.settings.googleClientId;
   state.settings = await saveSettings({
     googleClientId: $('s-clientid').value.trim(),
-    jevApiKey: $('s-key').value.trim(),
+    openrouterApiKey: $('s-key-openrouter').value.trim(),
+    typesafeApiKey: $('s-key-typesafe').value.trim(),
     jevModel: $('s-model').value.trim() || DEFAULTS.jevModel,
     concurrency: clamp(Number($('s-concurrency').value) || DEFAULTS.concurrency, 1, 24),
     gmailQuery: $('s-query').value.trim(),
@@ -596,19 +605,26 @@ async function saveSettingsFromForm() {
   setStatus('Settings saved.');
 }
 
-async function testJevKey() {
-  const out = $('s-test-result');
+async function testJevKey(providerId) {
+  const out = $(`s-test-result-${providerId}`);
+  const envName = providerId === 'openrouter' ? 'OPENROUTER_API_KEY' : 'TYPESAFE_API_KEY';
+  const key = $(`s-key-${providerId}`).value.trim() || state.settings.env?.[envName] || '';
   out.className = 'test-result';
+  if (!key) {
+    out.textContent = 'No key in this field or in .env.';
+    return;
+  }
   out.textContent = 'Checking…';
   try {
-    const models = await listModels({
-      ...state.settings,
-      jevApiKey: $('s-key').value.trim()
-    });
+    const info = await checkKey(providerId, key);
     out.className = 'test-result ok';
-    out.textContent = models.length
-      ? `Key works. Available: ${models.map((m) => m.name).join(', ')}`
-      : 'Key works.';
+    if (providerId === 'typesafe') {
+      out.textContent = info.models.length ? `Key works. Available: ${info.models.join(', ')}` : 'Key works.';
+    } else {
+      out.textContent = info.limitRemaining != null
+        ? `Key works. $${Number(info.limitRemaining).toFixed(2)} left on this key's limit.`
+        : 'Key works. No spending limit is set on this key — consider adding one.';
+    }
   } catch (err) {
     out.className = 'test-result bad';
     out.textContent = err.message;

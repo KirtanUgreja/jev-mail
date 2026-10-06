@@ -1,5 +1,23 @@
-// Settings live in chrome.storage.local. The Jev key never leaves the browser
-// except in the Authorization header of a request to api.typesafe.ai.
+// Settings live in chrome.storage.local. API keys come from Settings or from a
+// local .env file, and never leave the browser except in the Authorization
+// header of a request to the provider they belong to.
+
+// Jev is reachable two ways with the same request format. Model names differ:
+// OpenRouter prefixes them with 'typesafe/' ('~' marks a moving alias).
+export const PROVIDERS = {
+  openrouter: {
+    label: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    defaultModel: '~typesafe/jev-latest',
+    keysUrl: 'https://openrouter.ai/settings/keys'
+  },
+  typesafe: {
+    label: 'TypeSafe',
+    baseUrl: 'https://api.typesafe.ai/v1',
+    defaultModel: 'jev-latest',
+    keysUrl: 'https://console.typesafe.ai/'
+  }
+};
 
 export const DEFAULT_CATEGORIES = [
   { name: 'Work', description: 'Colleagues, clients and partners writing about projects, deliverables or meetings, plus notifications from work tools such as GitHub, Linear, Jira, Slack or Notion, and terms or policy updates from tools used for work. Not money (Finance), not account access (Security), not a service that is broken (Support).' },
@@ -17,9 +35,12 @@ export const DEFAULT_CATEGORIES = [
 ];
 
 export const DEFAULTS = {
-  jevApiKey: '',
-  jevModel: 'jev-latest',
-  jevBaseUrl: 'https://api.typesafe.ai/v1',
+  // Either key is enough. Empty here means "use the one from .env, if any".
+  openrouterApiKey: '',
+  typesafeApiKey: '',
+  // Empty = the provider's default. Written either way ('jev-1.13' or
+  // 'typesafe/jev-1.13'); resolveProvider() adapts it to the provider in use.
+  jevModel: '',
   gmailQuery: 'in:inbox',
   maxEmails: 500, // 0 = every message the query matches
   concurrency: 6,
@@ -36,18 +57,87 @@ export const DEFAULTS = {
 export async function loadSettings() {
   const stored = await chrome.storage.local.get('settings');
   const settings = { ...DEFAULTS, ...(stored.settings || {}) };
+  // Older builds stored a single TypeSafe key and endpoint.
+  if ('jevApiKey' in settings || 'jevBaseUrl' in settings) {
+    if (!settings.typesafeApiKey) settings.typesafeApiKey = String(settings.jevApiKey || '').trim();
+    if (settings.jevModel === 'jev-latest') settings.jevModel = '';
+    delete settings.jevApiKey;
+    delete settings.jevBaseUrl;
+    await chrome.storage.local.set({ settings: { ...settings } });
+  }
   // Left over from builds that offered a web OAuth flow.
   delete settings.authMode;
   delete settings.webClientId;
   if (!Array.isArray(settings.categories) || settings.categories.length < 2) {
     settings.categories = DEFAULT_CATEGORIES;
   }
+  settings.env = await loadEnv();
   return settings;
+}
+
+/* ------------------------------------------------------------------ .env */
+
+let envCache = null;
+
+// The .env file sits in the extension folder (gitignored) and is read from the
+// extension's own package. A missing file just means no keys from it.
+export async function loadEnv() {
+  if (envCache) return envCache;
+  try {
+    const res = await fetch(chrome.runtime.getURL('.env'));
+    envCache = res.ok ? parseEnv(await res.text()) : {};
+  } catch {
+    envCache = {};
+  }
+  return envCache;
+}
+
+export function parseEnv(text) {
+  const out = {};
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!m) continue;
+    let value = m[2];
+    if (/^(['"]).*\1$/.test(value)) value = value.slice(1, -1);
+    else value = value.replace(/\s+#.*$/, '');
+    out[m[1]] = value.trim();
+  }
+  return out;
+}
+
+/**
+ * Which provider to call and with what. A key typed in Settings beats one from
+ * .env. With both providers' keys present OpenRouter wins, unless
+ * JEV_PROVIDER=typesafe in .env says otherwise. Null when no key is set.
+ */
+export function resolveProvider(settings) {
+  const env = settings.env || {};
+  const keys = {
+    openrouter: (settings.openrouterApiKey || env.OPENROUTER_API_KEY || '').trim(),
+    typesafe: (settings.typesafeApiKey || env.TYPESAFE_API_KEY || '').trim()
+  };
+  const forced = String(env.JEV_PROVIDER || '').trim().toLowerCase();
+  const order = forced === 'typesafe' ? ['typesafe', 'openrouter'] : ['openrouter', 'typesafe'];
+  const id = order.find((p) => keys[p]);
+  if (!id) return null;
+
+  const provider = PROVIDERS[id];
+  return { id, ...provider, apiKey: keys[id], model: modelFor(id, settings.jevModel || env.JEV_MODEL) };
+}
+
+function modelFor(id, model) {
+  const name = String(model || '').trim();
+  if (!name) return PROVIDERS[id].defaultModel;
+  const bare = name.replace(/^~?typesafe\//, '');
+  if (id === 'typesafe') return bare;
+  if (/^~?typesafe\//.test(name)) return name;
+  return bare === 'jev-latest' ? '~typesafe/jev-latest' : `typesafe/${bare}`;
 }
 
 export async function saveSettings(patch) {
   const current = await loadSettings();
   const next = { ...current, ...patch };
-  await chrome.storage.local.set({ settings: next });
+  const { env, ...stored } = next;
+  await chrome.storage.local.set({ settings: stored });
   return next;
 }

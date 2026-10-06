@@ -145,6 +145,32 @@
     for (const el of document.querySelectorAll('.jev-badges')) el.remove();
   }
 
+  /* ---------------------------------------------------------------- notice */
+
+  // One small dismissible box for problems the user must fix, such as a bad
+  // OpenRouter key, so failures are never silent.
+  function showNotice(text) {
+    let box = document.getElementById('jev-notice');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'jev-notice';
+      box.className = 'jev-notice';
+      const msg = document.createElement('span');
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.textContent = '×';
+      close.title = 'Dismiss';
+      close.addEventListener('click', () => box.remove());
+      box.append(msg, close);
+      document.body.appendChild(box);
+    }
+    box.firstChild.textContent = `Jev Mail: ${text}`;
+  }
+
+  function hideNotice() {
+    document.getElementById('jev-notice')?.remove();
+  }
+
   /* ------------------------------------------------------------------ scan */
 
   async function scan() {
@@ -192,6 +218,11 @@
       if (!toClassify.length) return;
 
       const reply = await send({ type: 'overlay:classify', items: toClassify });
+      if (reply.error) {
+        showNotice(reply.error);
+        // A bad key or empty balance fails every row; wait for a settings change.
+        if (/\((401|402)\)/.test(reply.error)) state.autoClassify = false;
+      }
       for (const item of toClassify) {
         state.inFlight.delete(item.matchKey);
         const summary = reply.results?.[item.matchKey] || null;
@@ -243,6 +274,10 @@
     const config = await send({ type: 'overlay:config' });
     state.enabled = Boolean(config.enabled);
     state.autoClassify = Boolean(config.autoClassify);
+    hideNotice();
+    if (state.enabled && config.hasKey === false) {
+      showNotice('add a TypeSafe or OpenRouter API key in Settings or .env to classify emails.');
+    }
     if (!state.enabled) clearBadges();
     else schedule();
   }

@@ -1,13 +1,14 @@
 # Jev Mail
 
 A Chrome extension that scores every message in your Gmail with
-[TypeSafe's Jev](https://typesafe.ai) model — **category**, **priority**,
+[TypeSafe's Jev](https://typesafe.ai) model, called with your own TypeSafe or
+[OpenRouter](https://openrouter.ai/typesafe/jev-1.13) key — **category**, **priority**,
 **spam %** and **reply %** (how much the message needs an answer from you).
 
 Two ways to see it:
 
 - **Inline in Gmail** — badges appended to each row of your real thread list.
-  Needs nothing but a Jev API key.
+  Needs nothing but a TypeSafe or OpenRouter API key.
 - **The dashboard** — the whole inbox in one sortable, filterable, exportable
   table. Needs a Gmail API OAuth client.
 
@@ -24,9 +25,41 @@ Email                     Subject                                Category   Prio
 
 1. Open `chrome://extensions`, turn on **Developer mode**, **Load unpacked** →
    pick this folder.
-2. Click the toolbar icon, hit the **gear**, paste your key from
-   [console.typesafe.ai](https://console.typesafe.ai/), press **Test**, **Save**.
+2. Click the toolbar icon, hit the **gear**, paste your TypeSafe or OpenRouter key
+   (see [below](#api-key-typesafe-or-openrouter)), press **Test**, **Save** —
+   or put it in `.env`.
 3. Open [Gmail](https://mail.google.com/). Rows get badged as you scroll.
+
+### API key: TypeSafe or OpenRouter
+
+Jev is available directly from TypeSafe (`https://api.typesafe.ai/v1/systemone`)
+and through OpenRouter (`https://openrouter.ai/api/v1/systemone`). Both use the
+same request format. Jev Mail works with either key and checks which one you
+have. It calls the provider straight from your browser; there is no backend.
+
+- **OpenRouter:** create a key at
+  [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).
+- **TypeSafe:** create a key at [console.typesafe.ai](https://console.typesafe.ai/).
+
+Use a dedicated key with a spending limit. Then either:
+
+- **`.env` file:** copy `.env.example` to `.env` in the extension folder and set
+  `OPENROUTER_API_KEY` and/or `TYPESAFE_API_KEY`. Reload the extension on
+  `chrome://extensions` after editing. `.env` is gitignored.
+- **Settings:** paste the key under **Settings → Jev** and press **Test**. A key
+  typed here overrides `.env`, and is kept in `chrome.storage.local`.
+
+With both keys available, OpenRouter is used; set `JEV_PROVIDER=typesafe` in
+`.env` to prefer TypeSafe. **Settings** shows which provider is active. The model
+defaults to the latest Jev; `jev-1.13` pins a version on either provider (it is
+sent as `typesafe/jev-1.13` to OpenRouter).
+
+**The `.env` file is packaged with the extension.** Never zip or publish the
+folder with a real key in it.
+
+Errors you may see: *rejected the API key (401)*, a wrong or revoked key; *out
+of credits (402)*, top up or raise the key's limit; *rate limit (429)*, lower
+**Parallel requests**.
 
 That is the whole setup. The overlay reads the sender, subject and preview line
 straight out of Gmail's page — the same three fields the API path sends to Jev —
@@ -89,10 +122,10 @@ Settings worth knowing:
   to **0** to fetch every message the query matches. There is no hard ceiling —
   the practical limits are time and Gmail's quota, not the extension. A full
   20,000-message inbox is roughly 20 minutes of fetching plus 20 minutes of
-  classifying at the default concurrency, and about $1.70 of Jev usage. The table
+  classifying at the default concurrency, plus Jev usage billed by your provider. The table
   renders 400 rows at a time so a large inbox stays responsive.
-- **Parallel requests** — Jev allows 1,200 requests/minute; raise this to go
-  faster, lower it if you see 429s.
+- **Parallel requests** — raise this to go faster, lower it if you see 429s
+  (your provider's rate limits apply).
 - **Categories** — one per line as `Name: what belongs in it`. The description
   is the rubric Jev scores against, so make it specific to your mail. Edit these
   freely; they are the biggest lever on classification quality.
@@ -110,9 +143,10 @@ So each email gets six narrow questions in one request — Jev ingests the state
 once and answers them in parallel:
 
 ```json
-POST https://api.typesafe.ai/v1/systemone
+POST https://openrouter.ai/api/v1/systemone   (or https://api.typesafe.ai/v1/systemone)
+Authorization: Bearer <API key>
 {
-  "model": "jev-latest",
+  "model": "~typesafe/jev-latest",            (TypeSafe: "jev-latest")
   "state": {
     "from_name": "Google Cloud",
     "from_address": "CloudPlatform-noreply@google.com",
@@ -121,8 +155,8 @@ POST https://api.typesafe.ai/v1/systemone
     "gmail_tab": "Updates"
   },
   "questions": {
-    "category":        { "type": "choice", "criteria": { "Work": "…", "Finance": "…", "Security": "…" } },
-    "priority":        { "type": "choice", "criteria": { "Low": "…", "Normal": "…", "High": "…" } },
+    "category":        { "type": "choice", "instructions": "Which single category…", "criteria": { "Work": "…", "Finance": "…", "Security": "…" } },
+    "priority":        { "type": "choice", "instructions": "How soon does the recipient need to act…", "criteria": { "Low": "…", "Normal": "…", "High": "…" } },
     "deceptive":       { "type": "noul", "instructions": "Is this email trying to trick the recipient…" },
     "unsolicited":     { "type": "noul", "instructions": "Is this unsolicited bulk mail…" },
     "official_domain": { "type": "noul", "instructions": "Is the sender's address on an official domain of…" },
@@ -162,8 +196,9 @@ Only **metadata** is sent: sender name and address, subject, Gmail's
 ~200-character preview, and which Gmail tab it is in. Message bodies are never
 fetched.
 
-Cost: Jev bills $42 per billion input tokens and nothing for output. The rubric
-is about 2,000 tokens per email, so roughly **9 cents per 1,000 emails**. The
+Cost: billed by TypeSafe or OpenRouter at Jev's per-token rate (see the
+[model page](https://openrouter.ai/typesafe/jev-1.13)). The rubric is about
+2,000 input tokens per email. The
 running total and elapsed time appear in the status line.
 
 ## How the Gmail overlay works
