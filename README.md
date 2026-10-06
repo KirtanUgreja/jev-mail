@@ -12,7 +12,8 @@ Two ways to see it:
 - **The dashboard** — the whole inbox in one sortable, filterable, exportable
   table. Needs a Gmail API OAuth client.
 
-Read-only: it never sends, deletes, labels or archives anything.
+It never sends mail and never deletes permanently. With Gmail connected it can
+label, archive and move to Trash — always reversible (see [Gmail access](#gmail-access-and-the-restricted-scope)).
 
 ```
 Email                     Subject                                Category   Priority  Spam  Reply
@@ -96,8 +97,32 @@ looks like `https://<extension-id>.chromiumapp.org/`. Copy it.
    own Google account under **Test users**. That's all an unpublished app needs.
 3. **Credentials → Create credentials → OAuth client ID → Web application**.
    Under **Authorized redirect URIs**, paste the redirect URL from step 1.
-4. Copy the client ID into **Settings → Gmail → Google OAuth client ID** and
+4. Under **Data access** (or **Scopes**), add `.../auth/gmail.modify` and
+   `.../auth/gmail.labels`.
+5. Copy the client ID into **Settings → Gmail → Google OAuth client ID** and
    save. No files to edit, no reload.
+
+The sign-in uses `chrome.identity.launchWebAuthFlow` with a *Web application*
+client rather than `getAuthToken` with a *Chrome extension* client. That way it
+works in Brave as well as Chrome, and nobody has to put a client ID in
+`manifest.json`.
+
+#### Gmail access and the restricted scope
+
+Jev Mail asks for exactly two scopes:
+
+| Scope | Used for |
+| ----- | -------- |
+| `https://www.googleapis.com/auth/gmail.modify` | read messages, add/remove labels, archive, move to Trash and back |
+| `https://www.googleapis.com/auth/gmail.labels` | create the `Jev/...` labels |
+
+It never asks for `https://mail.google.com/` (full access), so it **cannot**
+delete permanently. Trash empties itself after 30 days.
+
+`gmail.modify` is a Google **restricted scope**. For personal use, leave the app
+in **Testing** mode on the consent screen: up to 100 test users can sign in with
+no review. Publishing publicly requires Google's OAuth verification **and** a
+third-party security assessment.
 
 ### 3. Run it
 
@@ -256,6 +281,13 @@ above).
 doesn't match the one shown in Settings. Unpacked extensions get their ID from
 the folder's location, so **moving or re-downloading the folder changes the
 redirect URL**. Copy the current one from Settings into the client again.
+
+**"Gmail permission denied (403)"** — you unticked a permission on Google's
+consent screen, or signed in before this version asked for `gmail.modify`.
+Use **Settings → Gmail → Sign out of Gmail**, then sign in again and allow
+everything. Also check both scopes are listed on the consent screen.
+
+**"Not signed in to Gmail"** — press **Start** (or **Sign in**) to connect.
 
 **"Access blocked" or other Gmail authorization failures** — check that the
 client type is *Web application* and that your account is listed under the

@@ -14,17 +14,28 @@ const CATEGORY_LABELS = {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function call(path, { signal } = {}) {
+async function call(path, { signal, method = 'GET', body } = {}) {
   let refreshed = false;
 
   for (let attempt = 0; ; attempt++) {
-    const token = await getToken({ interactive: false });
+    let token;
+    try {
+      token = await getToken({ interactive: false });
+    } catch (err) {
+      throw new Error(`Not signed in to Gmail. Press Start (or Sign in) to connect. (${err.message})`);
+    }
     const res = await fetch(`${BASE}${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {})
+      },
+      body: body ? JSON.stringify(body) : undefined,
       signal
     });
 
-    if (res.ok) return res.json();
+    // batchModify answers 204 with no body.
+    if (res.ok) return res.status === 204 ? {} : res.json();
 
     // A cached token that Gmail rejects is worth exactly one retry.
     if (res.status === 401 && !refreshed) {
@@ -33,7 +44,18 @@ async function call(path, { signal } = {}) {
       continue;
     }
 
-    if ((res.status === 429 || res.status >= 500) && attempt < 5) {
+    const text = await res.text().catch(() => '');
+    let error = {};
+    try {
+      error = JSON.parse(text)?.error || {};
+    } catch {
+      error = { message: text.slice(0, 200) };
+    }
+    const reason = error.errors?.[0]?.reason || error.status || '';
+
+    // 403 rateLimitExceeded / userRateLimitExceeded is a quota, not a refusal.
+    const rateLimited = res.status === 429 || (res.status === 403 && /rate ?limit/i.test(reason));
+    if ((rateLimited || res.status >= 500) && attempt < 5) {
       const retryAfter = Number(res.headers.get('retry-after'));
       const wait = Number.isFinite(retryAfter) && retryAfter > 0
         ? retryAfter * 1000
@@ -42,14 +64,13 @@ async function call(path, { signal } = {}) {
       continue;
     }
 
-    const body = await res.text().catch(() => '');
-    let detail = '';
-    try {
-      detail = JSON.parse(body)?.error?.message || '';
-    } catch {
-      detail = body.slice(0, 200);
+    if (res.status === 401) {
+      throw new Error('Not signed in to Gmail: the session expired. Press Start (or Sign in) to reconnect.');
     }
-    throw new Error(`Gmail API ${res.status}: ${detail || res.statusText}`);
+    if (res.status === 403 && !rateLimited) {
+      throw new Error('Gmail permission denied (403). Sign out under Settings → Gmail, then sign in again and allow every requested permission.');
+    }
+    throw new Error(`Gmail API ${res.status}: ${error.message || res.statusText}`);
   }
 }
 

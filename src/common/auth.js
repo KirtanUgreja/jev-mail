@@ -8,7 +8,12 @@
 
 import { loadSettings } from './settings.js';
 
-const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+// gmail.modify reads, labels, archives and moves to Trash; it cannot delete
+// permanently. Never request https://mail.google.com/ (full access).
+const SCOPE = [
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.labels'
+].join(' ');
 const CACHE_KEY = 'gmailToken';
 
 export function extensionId() {
@@ -28,7 +33,8 @@ async function clientId() {
 // is only readable by extension pages — never by the Gmail content script.
 async function cachedToken(id) {
   const { [CACHE_KEY]: cached } = await chrome.storage.session.get(CACHE_KEY);
-  if (!cached || cached.clientId !== id) return null;
+  // A token minted for the old read-only scope can't label or trash.
+  if (!cached || cached.clientId !== id || cached.scope !== SCOPE) return null;
   return cached.expiresAt - 60_000 > Date.now() ? cached.token : null;
 }
 
@@ -69,9 +75,16 @@ export async function getToken({ interactive = false } = {}) {
     throw new Error(`Gmail authorization failed: ${reason}`);
   }
 
+  // The consent screen lets the user untick scopes. Without modify there is
+  // nothing useful to do, so say so now rather than on the first label call.
+  const granted = fragment.get('scope');
+  if (granted && !granted.split(/\s+/).includes('https://www.googleapis.com/auth/gmail.modify')) {
+    throw new Error('Gmail permission denied: tick every Gmail permission Jev Mail asks for when signing in.');
+  }
+
   const ttl = Number(fragment.get('expires_in') || 3600) * 1000;
   await chrome.storage.session.set({
-    [CACHE_KEY]: { token, clientId: id, expiresAt: Date.now() + ttl }
+    [CACHE_KEY]: { token, clientId: id, scope: SCOPE, expiresAt: Date.now() + ttl }
   });
   return token;
 }

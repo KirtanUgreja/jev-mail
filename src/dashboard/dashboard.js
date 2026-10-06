@@ -527,7 +527,7 @@ function updateOnboarding() {
     steps.push(`Get an API key from <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer">OpenRouter</a> or <a href="https://console.typesafe.ai/" target="_blank" rel="noreferrer">TypeSafe</a> (a dedicated key with a spending limit), then paste it in <b>Settings</b> or put it in <code>.env</code> as <code>OPENROUTER_API_KEY</code> or <code>TYPESAFE_API_KEY</code>.`);
   }
   if (!state.connected) {
-    steps.push(`Hit <b>Start</b> and approve read-only access to Gmail.`);
+    steps.push(`Hit <b>Start</b> and approve access to Gmail (read, label and move to Trash — never permanent delete).`);
   }
 
   panel.hidden = false;
