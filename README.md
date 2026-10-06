@@ -1,9 +1,29 @@
-# Jev Mail
+# Jev Mail — AI Gmail Cleaner, Auto-Labeler & Inbox Triage (Chrome / Brave Extension)
 
-A Chrome extension that scores every message in your Gmail with
-[TypeSafe's Jev](https://typesafe.ai) model, called with your own TypeSafe or
-[OpenRouter](https://openrouter.ai/typesafe/jev-1.13) key — **category**, **priority**,
-**spam %** and **reply %** (how much the message needs an answer from you).
+**Built by [Kirtan Ugreja](https://github.com/KirtanUgreja).**
+
+Jev Mail is a free, open-source Chrome and Brave extension that uses AI to
+organise Gmail. It **classifies every email** (category, priority, important,
+needs reply, spam), **auto-labels Gmail into folders** under `Jev/...`, and
+**cleans up junk mail safely** with a preview, Trash-only deletes and one-click
+Undo. Use it for inbox zero, bulk unsubscribe-style cleanup by sender, and
+email triage, with no backend server. It runs entirely in your browser with
+your own [OpenRouter](https://openrouter.ai/typesafe/jev-1.13) or
+[TypeSafe](https://typesafe.ai) API key and calls TypeSafe's **Jev** model.
+
+**Features**
+
+- 🏷️ **Auto-label Gmail**: `Jev/Work`, `Jev/Finance & Invoices`,
+  `Jev/Priority/High`, `Jev/Needs Reply`, … with optional auto-archive.
+- 🧹 **Safe Gmail cleanup**: bulk-delete junk by sender. It always shows a
+  preview first, only moves mail to Trash, and has Undo. Starred, important and
+  protected mail is never touched.
+- 🤖 **AI email classification**: category, priority, importance, reply needed
+  and spam score for every email, in a single request per email.
+- 📊 **Side panel and dashboard**: counts by category and priority, progress
+  bar, sortable table, CSV export.
+- 🔒 **Private by design**: no server, keys stay in your browser, and only the
+  sender, subject and a body excerpt are sent to the AI provider.
 
 Three ways to use it:
 
@@ -22,10 +42,10 @@ It never sends mail and never deletes permanently. With Gmail connected it can
 label, archive and move to Trash — always reversible (see [Gmail access](#gmail-access-and-the-restricted-scope)).
 
 ```
-Email                     Subject                                Category   Priority  Spam  Reply
-• Amazon.com via Inbound   Ordered: 4 Electronics items           Shopping   Low        45%    4%
-• OpenAI                   Review needed: safety identifier …     Security   High       20%   17%
-• Mohammad Farseen         Re: you missed it                      Marketing  Low        29%   51%
+Email                     Subject                                Category          Priority  Spam  Reply
+• Amazon.com via Inbound   Ordered: 4 Electronics items           Orders/Shipping   Low        45%    4%
+• OpenAI                   Review needed: safety identifier …     Security/Alerts   High       20%   17%
+• A cold sender            Re: you missed it                      Promotions        Low        29%   51%
 ```
 
 ## Quick start — in Gmail, no Google Cloud account
@@ -375,6 +395,14 @@ everything. Also check both scopes are listed on the consent screen.
 
 **"Not signed in to Gmail"** — press **Start** in the dashboard or **Classify inbox** in the side panel to sign in.
 
+**"Access blocked: <app> has not completed the Google verification process"
+(Error 403: access_denied)** — the account you're signing in with isn't a test
+user of the Google Cloud project. Go to **Google Auth Platform → Audience →
+Test users**, add your Gmail address, and sign in again. The name in the error
+is the project's consent-screen name, so if it says something unexpected (say,
+another app of yours), you reused a project; consider a dedicated "Jev Mail"
+project. No Google verification is needed for personal use.
+
 **"Access blocked" or other Gmail authorization failures** — check that the
 client type is *Web application* and that your account is listed under the
 consent screen's **Test users**. Some managed Workspace accounts block
@@ -397,3 +425,20 @@ inbox's DOM. Also confirm **Settings → In Gmail** is still enabled.
 scores against the rubric you give it, so `Work: colleagues, clients, projects`
 behaves very differently from `Work: anything from an @acme.com address or our
 Linear/GitHub notifications`.
+
+## Credits and license
+
+Jev Mail is developed and maintained by **[Kirtan Ugreja](https://github.com/KirtanUgreja)**.
+Kirtan added the OpenRouter and TypeSafe provider support, `.env` keys, Gmail
+auto-labeling, safe cleanup with Undo, the richer classification and the side
+panel.
+
+It started as a fork of [jev-mail by ilyasy](https://github.com/muhammedilyasy/jev-mail),
+which provided the original classifier, overlay and dashboard. Released under
+the [MIT License](LICENSE); the original copyright notice is kept as the license
+requires.
+
+<sub>Keywords: Gmail AI extension, AI email organizer, Gmail auto label, Gmail
+cleaner, delete promotional emails, bulk delete Gmail by sender, inbox zero
+Chrome extension, email triage, email classifier, spam filter, Brave extension,
+OpenRouter, TypeSafe Jev, LLM email sorting, Manifest V3.</sub>

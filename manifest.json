@@ -2,7 +2,8 @@
   "manifest_version": 3,
   "name": "Jev Mail \u2014 AI inbox triage",
   "version": "0.2.0",
-  "description": "Triage your Gmail with TypeSafe's Jev model (via TypeSafe or OpenRouter): category, priority, spam % and reply % for every message.",
+  "description": "AI Gmail organizer: auto-label, classify and safely clean up your inbox with TypeSafe's Jev model via OpenRouter or TypeSafe.",
+  "homepage_url": "https://github.com/KirtanUgreja/jev-mail",
   "minimum_chrome_version": "116",
   "permissions": [
     "identity",
