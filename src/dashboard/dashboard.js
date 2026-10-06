@@ -267,7 +267,7 @@ function visibleRows() {
   if (cat) rows = rows.filter((r) => r.result?.category === cat);
   if (prio) rows = rows.filter((r) => r.result?.priority === prio);
 
-  const rank = { High: 3, Normal: 2, Low: 1 };
+  const rank = { High: 3, Medium: 2, Low: 1 };
   const key = state.sort.key;
   const dir = state.sort.dir === 'asc' ? 1 : -1;
   const value = (r) => {
@@ -533,7 +533,7 @@ function updateOnboarding() {
   panel.hidden = false;
   panel.innerHTML = `
     <h2>Finish setup</h2>
-    <p>Jev Mail reads message metadata from Gmail and scores each one with TypeSafe's Jev model. Nothing leaves your browser except the sender, subject and preview line sent to the Jev provider you use (openrouter.ai or api.typesafe.ai).</p>
+    <p>Jev Mail reads your Gmail and scores each message with TypeSafe's Jev model. Only the sender, subject and the first ~4,000 characters of the body are sent, and only to the Jev provider you use (openrouter.ai or api.typesafe.ai).</p>
     ${needsClientId ? `<p><b>You may not need any of this.</b> With just a TypeSafe or OpenRouter API key, the in-Gmail badges already work — open <a href="https://mail.google.com/" target="_blank" rel="noreferrer">Gmail</a> and rows get classified as you scroll. The steps below only unlock this dashboard, which reads your whole inbox at once through the Gmail API.</p>` : ''}
     <ol>${steps.map((s) => `<li>${s}</li>`).join('')}</ol>
     <div class="cta"><button type="button" class="primary" id="ob-settings">Open settings</button></div>

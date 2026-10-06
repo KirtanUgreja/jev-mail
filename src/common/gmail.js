@@ -180,6 +180,46 @@ export async function getMessage(id, { signal } = {}) {
   };
 }
 
+/**
+ * Plain text of a message's body, for classification only. Never stored: the
+ * caller passes it straight to Jev and drops it. Prefers text/plain, falls back
+ * to text/html with the tags stripped.
+ */
+export async function getBody(id, { signal, maxChars = 4000 } = {}) {
+  const msg = await call(`/messages/${id}?format=full`, { signal });
+  const parts = [];
+  const walk = (part) => {
+    if (!part) return;
+    if (part.body?.data && /^text\/(plain|html)/i.test(part.mimeType || '')) parts.push(part);
+    for (const child of part.parts || []) walk(child);
+  };
+  walk(msg.payload);
+
+  const plain = parts.find((p) => /^text\/plain/i.test(p.mimeType));
+  const html = parts.find((p) => /^text\/html/i.test(p.mimeType));
+  const chosen = plain || html;
+  if (!chosen) return '';
+
+  let text = decodeBase64Url(chosen.body.data);
+  if (!plain) text = htmlToText(text);
+  return text.replace(/\s+/g, ' ').trim().slice(0, maxChars);
+}
+
+function decodeBase64Url(data) {
+  const binary = atob(data.replace(/-/g, '+').replace(/_/g, '/'));
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+function htmlToText(html) {
+  return decodeEntities(
+    html
+      .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+  );
+}
+
 // Gmail snippets arrive HTML-escaped (&amp;, &#39;, ...).
 function decodeEntities(text) {
   return text

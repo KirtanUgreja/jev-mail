@@ -151,7 +151,9 @@ Settings worth knowing:
   renders 400 rows at a time so a large inbox stays responsive.
 - **Parallel requests** — raise this to go faster, lower it if you see 429s
   (your provider's rate limits apply).
-- **Categories** — one per line as `Name: what belongs in it`. The description
+- **Categories** — one per line as `Name: what belongs in it`. Defaults: Work,
+  Personal, Finance/Invoices, Orders/Shipping, Security/Alerts, Newsletters,
+  Promotions, Social, Spam. The description
   is the rubric Jev scores against, so make it specific to your mail. Edit these
   freely; they are the biggest lever on classification quality.
 
@@ -164,8 +166,24 @@ spam, a scam, or phishing?" hides three. A genuine *"your payment failed, your
 account will be suspended"* notice from Google Cloud reads exactly like a
 phishing template, and scored 86% spam under that one question.
 
-So each email gets six narrow questions in one request — Jev ingests the state
-once and answers them in parallel:
+So each email gets narrow questions in one request — Jev ingests the state
+once and answers them in parallel. Alongside the spam signals below, the same
+request asks:
+
+| Question | Type | Used for |
+| -------- | ---- | -------- |
+| `category` | choice from your category list | `Jev/<Category>` label |
+| `priority` | High / Medium / Low | `Jev/Priority/...` label |
+| `important` | yes/no | blocks cleanup |
+| `needs_reply` | yes/no | `Jev/Needs Reply` label, Reply %, blocks cleanup |
+| `junk` | yes/no | cleanup candidate, never acted on alone |
+
+Each result is stored with Jev's confidence per question, keyed by Gmail message
+ID, in the extension's IndexedDB. The extension uses IndexedDB rather than
+`chrome.storage.local` so that writing one row doesn't rewrite all of them. An
+email is only classified again if the rubric changes.
+
+The request (abridged):
 
 ```json
 POST https://openrouter.ai/api/v1/systemone   (or https://api.typesafe.ai/v1/systemone)
@@ -217,9 +235,11 @@ Hover the **Spam** cell for the breakdown behind any score:
 Every stored result records which rubric produced it, so changing the questions —
 or editing your categories — makes the next run re-score automatically.
 
-Only **metadata** is sent: sender name and address, subject, Gmail's
-~200-character preview, and which Gmail tab it is in. Message bodies are never
-fetched.
+What is sent: sender name and address, subject, which Gmail tab the email is
+in, and the **first ~4,000 characters of the body** (as plain text). The body is
+fetched only while that email is being classified and is never stored. Emails
+classified from the Gmail page itself (the overlay) send Gmail's preview line
+instead of the body.
 
 Cost: billed by TypeSafe or OpenRouter at Jev's per-token rate (see the
 [model page](https://openrouter.ai/typesafe/jev-1.13)). The rubric is about

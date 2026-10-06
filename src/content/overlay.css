@@ -38,7 +38,7 @@ td.jev-host {
 .jev-cat { background: #eceae7; color: #5f5b55; }
 
 .jev-pri { background: #f1f0ee; color: #6b6762; }
-.jev-pri.jev-Normal { background: #e4edfd; color: #1a56db; }
+.jev-pri.jev-Medium { background: #e4edfd; color: #1a56db; }
 .jev-pri.jev-High { background: #fdf0d4; color: #9a5b00; }
 
 .jev-m {
@@ -66,7 +66,7 @@ td.jev-host {
    measures the row background and sets this class. */
 .jev-dark .jev-cat { background: #35322e; color: #b9b4ac; }
 .jev-dark .jev-pri { background: #302d2a; color: #a9a49c; }
-.jev-dark .jev-pri.jev-Normal { background: #1e2a44; color: #9dbcfb; }
+.jev-dark .jev-pri.jev-Medium { background: #1e2a44; color: #9dbcfb; }
 .jev-dark .jev-pri.jev-High { background: #3a2f14; color: #fbbf24; }
 .jev-dark .jev-m { color: #8b867f; }
 .jev-dark .jev-m.jev-mid { color: #f0a142; }

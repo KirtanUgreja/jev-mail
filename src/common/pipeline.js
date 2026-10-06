@@ -1,5 +1,5 @@
-import { getProfile, listMessageIds, getMessage } from './gmail.js';
-import { classify, rubricId } from './jev.js';
+import { getProfile, listMessageIds, getMessage, getBody } from './gmail.js';
+import { classify, rubricId, BODY_CHARS } from './jev.js';
 import { getEmailIds, putEmail, putEmails, getAllEmails, deleteEmails } from './db.js';
 
 /** Bounded worker pool. One item failing never takes the run down. */
@@ -136,7 +136,16 @@ export async function classifyAll(settings, { rows, onEvent, signal }) {
   let inputTokens = 0;
 
   const classifyOne = async (email) => {
-    const result = await classify(settings, email, { signal });
+    // The body is fetched just for this request and never written to the DB.
+    // Rows the Gmail overlay found have no message id, so they use the preview.
+    let body = '';
+    if (!email.id.startsWith('dom:')) {
+      body = await getBody(email.id, { signal, maxChars: BODY_CHARS }).catch((err) => {
+        if (err.name === 'AbortError') throw err;
+        return '';
+      });
+    }
+    const result = await classify(settings, { ...email, body }, { signal });
     const updated = { ...email, result, status: 'done', error: null };
     await putEmail(updated);
     inputTokens += result.inputTokens || 0;

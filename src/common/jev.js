@@ -28,10 +28,14 @@ export class JevError extends Error {
 // Bad key and empty balance fail every request the same way, so callers stop early.
 export const isFatal = (err) => err?.code === 'auth' || err?.code === 'credits';
 
-export const PRIORITY_LEVELS = ['Low', 'Normal', 'High'];
+export const PRIORITY_LEVELS = ['Low', 'Medium', 'High'];
 
 // Bump when compose() changes meaning, so stored results get re-scored.
-const COMPOSE_VERSION = 2;
+const COMPOSE_VERSION = 3;
+
+// Jev's context is 32k tokens; the rubric is ~3k. 4,000 characters of body is
+// about 1,000 tokens and holds what the questions need.
+export const BODY_CHARS = 4000;
 
 export function buildQuestions(categories) {
   const categoryCriteria = {};
@@ -62,7 +66,7 @@ export function buildQuestions(categories) {
             'A deprecation notice with a deadline months away'
           ]
         },
-        Normal: {
+        Medium: {
           meaning: 'Should be handled in the next day or two, but nothing is lost today.',
           examples: [
             'A person asking a question or waiting on a decision',
@@ -169,9 +173,66 @@ export function buildQuestions(categories) {
       }
     },
 
-    reply: {
+    // What the recipient would be upset to miss, regardless of urgency.
+    important: {
       type: 'noul',
-      instructions: 'Is a specific person waiting for the recipient to write back?',
+      instructions: 'Is this email important to the recipient personally, something they would be upset to miss or need to find again later?',
+      criteria: {
+        true: {
+          meaning: 'Missing or losing this email would cost the recipient money, access, a relationship or information they need.',
+          examples: [
+            'A message a person wrote to the recipient',
+            'An invoice, receipt, contract, tax document or bank notice',
+            'A security alert, password reset or account access notice',
+            'Travel bookings, tickets, appointments and confirmations',
+            'A decision, approval or deadline that concerns the recipient'
+          ]
+        },
+        false: {
+          meaning: 'Nothing is lost if the recipient never reads this.',
+          examples: [
+            'Promotions, discounts and product launches',
+            'Newsletters and digests',
+            'Social network notifications',
+            'Automated noise such as "you have new followers" or weekly tips'
+          ]
+        }
+      }
+    },
+
+    // Candidate for cleanup. Code never acts on this alone: protections in
+    // cleanup.js and the narrow questions above both have to agree.
+    junk: {
+      type: 'noul',
+      instructions: 'Is this email safe to clean up: a promotion, an expired offer, automated noise or spam that the recipient will never need again?',
+      criteria: {
+        true: {
+          meaning: 'Throwaway mail with no lasting value to the recipient.',
+          examples: [
+            'A marketing blast, sale or discount, especially an expired one',
+            'Cold sales outreach sent to many people',
+            'Social network or app engagement notifications',
+            'Scams, phishing and spam',
+            'An automated digest the recipient never acts on'
+          ]
+        },
+        false: {
+          meaning: 'Has, or may later have, value to the recipient.',
+          examples: [
+            'Anything a person wrote to the recipient',
+            'Receipts, invoices, orders, bills, payments and tax documents',
+            'Security, sign-in and account notices',
+            'Legal, policy, contract or terms notices',
+            'Anything about travel, appointments or deadlines'
+          ],
+          note: 'When unsure, answer false. A wrongly kept email costs nothing; a wrongly removed one may be lost.'
+        }
+      }
+    },
+
+    needs_reply: {
+      type: 'noul',
+      instructions: 'Does the recipient need to reply: is a specific person waiting for the recipient to write back?',
       criteria: {
         true: {
           meaning: 'A named human is waiting on an answer only the recipient can give.',
@@ -202,12 +263,22 @@ export function buildState(email) {
   const state = {
     from_name: email.fromName,
     from_address: email.fromEmail,
-    subject: email.subject,
-    preview: email.snippet
+    subject: email.subject
   };
+  // The body when the Gmail API gave us one, otherwise Gmail's preview line.
+  if (email.body) state.body = trimBody(email.body);
+  else state.preview = email.snippet;
   if (email.gmailCategory) state.gmail_tab = email.gmailCategory;
   return state;
 }
+
+export function trimBody(text) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  return clean.length > BODY_CHARS ? `${clean.slice(0, BODY_CHARS)}…` : clean;
+}
+
+/** How sure Jev is of a yes/no answer, from the probability of yes. */
+export const yesNoConfidence = (p) => (typeof p === 'number' ? Math.max(p, 1 - p) : 0);
 
 // FNV-1a over the questions: any change to the rubric, including a user
 // editing their categories, gives stored results a different id and they get
@@ -265,7 +336,7 @@ export function compose(answers, email) {
 
   // Cold outreach is written to look like it wants an answer. Damp rather than
   // zero it: an unexpected customer enquiry is unsolicited-ish and still matters.
-  let reply = noul('reply') * (1 - 0.6 * unsolicited);
+  let reply = noul('needs_reply') * (1 - 0.6 * unsolicited);
   // Nobody can be waiting on a reply to an address that doesn't take replies.
   if (isNoReplyAddress(email.fromEmail)) reply = Math.min(reply, 0.03);
 
@@ -280,6 +351,14 @@ export function compose(answers, email) {
     priorityConfidence: answers.priority?.confidence ?? null,
     spam,
     reply: clamp01(reply),
+    important: noul('important'),
+    junk: noul('junk'),
+    // Confidence of each yes/no answer as Jev gave it, before code adjusted it.
+    confidence: {
+      important: yesNoConfidence(answers.important?.noul),
+      needsReply: yesNoConfidence(answers.needs_reply?.noul),
+      junk: yesNoConfidence(answers.junk?.noul)
+    },
     signals: {
       deceptive: noul('deceptive'),
       unsolicited,

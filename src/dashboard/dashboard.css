@@ -309,7 +309,7 @@ td.category { color: var(--ink-2); }
   background: var(--gray-soft);
   color: var(--ink-2);
 }
-.pill.Normal { background: var(--blue-soft); color: var(--blue); }
+.pill.Medium { background: var(--blue-soft); color: var(--blue); }
 .pill.High { background: var(--amber-soft); color: var(--amber); }
 
 .metric {
