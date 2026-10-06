@@ -157,6 +157,32 @@ Settings worth knowing:
   is the rubric Jev scores against, so make it specific to your mail. Edit these
   freely; they are the biggest lever on classification quality.
 
+## Labels ("folders")
+
+Gmail has no folders; Jev Mail uses labels. **Start** fetches, classifies, and
+then labels. **Apply labels** labels again from the stored results, for example
+after you change the threshold. Missing labels are created on first use:
+
+```
+Jev/<Category>            one per category ("Finance/Invoices" → "Jev/Finance & Invoices",
+                          since Gmail treats "/" as nesting)
+Jev/Priority/High · Medium · Low
+Jev/Needs Reply
+Jev/Review
+```
+
+- Labels are applied with `users.messages.batchModify`: one call per group of
+  emails that need the same change (up to 1,000 per call), with a short pause
+  between calls.
+- **Confidence threshold** (default 0.75). If Jev is less sure than this about
+  the category, priority or needs-reply answer, the email gets **only**
+  `Jev/Review`. No other label is added and it is not archived.
+- **Archive after labeling** (default off). For the categories you tick, INBOX
+  is removed, so the email only appears under its `Jev/` label. It is still in
+  All Mail. Low-confidence emails are never archived.
+- If a later run changes an email's category or priority, the old `Jev/` labels
+  are removed. Labels you made yourself are never touched.
+
 ## How the classification works
 
 Spam is never asked as a question. Jev reads instructions literally and gets

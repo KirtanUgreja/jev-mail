@@ -3,6 +3,7 @@ import { getToken, signOut, invalidateToken, redirectUrl } from '../common/auth.
 import { getAllEmails, clearEmails } from '../common/db.js';
 import { checkKey, explainSpam } from '../common/jev.js';
 import { syncInbox, classifyAll } from '../common/pipeline.js';
+import { applyLabels } from '../common/labels.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -79,6 +80,7 @@ function wireEvents() {
     });
   }
 
+  $('btn-labels').addEventListener('click', onApplyLabels);
   $('s-cancel').addEventListener('click', () => $('settings').close());
   $('s-save').addEventListener('click', saveSettingsFromForm);
   $('s-test-openrouter').addEventListener('click', () => testJevKey('openrouter'));
@@ -114,6 +116,18 @@ async function onStartStop() {
     }
     if (!state.emails.size) await doSync();
     await doClassify();
+    await doLabels();
+  });
+}
+
+async function onApplyLabels() {
+  await runGuarded(doLabels);
+}
+
+async function doLabels() {
+  await applyLabels(state.settings, [...state.emails.values()], {
+    onEvent: handleEvent,
+    signal: state.controller.signal
   });
 }
 
@@ -196,6 +210,8 @@ function handleEvent(evt) {
       setStatus(
         evt.phase === 'fetch'
           ? `Fetching messages… ${evt.done} / ${evt.total}`
+          : evt.phase === 'label'
+          ? `Labeling… ${evt.done} / ${evt.total}`
           : `Classifying… ${evt.done} / ${evt.total}${evt.inputTokens ? ` · ${formatCost(evt.inputTokens)}` : ''}`
       );
       break;
@@ -502,6 +518,7 @@ function setRunning(running) {
   start.textContent = running ? 'Stop' : 'Start';
   start.dataset.state = running ? 'running' : '';
   $('btn-sync').disabled = running;
+  $('btn-labels').disabled = running;
   $('btn-settings').disabled = running;
 }
 
@@ -559,6 +576,18 @@ function openSettings() {
   $('s-redirect').textContent = redirectUrl();
   $('s-overlay').checked = s.overlayEnabled;
   $('s-overlay-auto').checked = s.overlayAutoClassify;
+  $('s-threshold').value = s.confidenceThreshold;
+  $('s-archive').checked = s.archiveAfterLabeling;
+  $('s-archive-cats').replaceChildren(...s.categories.map((c) => {
+    const label = document.createElement('label');
+    label.className = 'check';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.value = c.name;
+    box.checked = s.archiveCategories.includes(c.name);
+    label.append(box, document.createTextNode(` ${c.name}`));
+    return label;
+  }));
   $('s-categories').value = s.categories.map((c) => `${c.name}: ${c.description || ''}`.trim()).join('\n');
   for (const id of ['openrouter', 'typesafe']) {
     $(`s-test-result-${id}`).textContent = '';
@@ -592,7 +621,10 @@ async function saveSettingsFromForm() {
     maxEmails: parseMax($('s-max').value),
     overlayEnabled: $('s-overlay').checked,
     overlayAutoClassify: $('s-overlay-auto').checked,
-    categories: parseCategories($('s-categories').value)
+    categories: parseCategories($('s-categories').value),
+    confidenceThreshold: clamp(Number($('s-threshold').value) || DEFAULTS.confidenceThreshold, 0.5, 1),
+    archiveAfterLabeling: $('s-archive').checked,
+    archiveCategories: [...$('s-archive-cats').querySelectorAll('input:checked')].map((b) => b.value)
   });
 
   // A token minted for another client is useless to this one.

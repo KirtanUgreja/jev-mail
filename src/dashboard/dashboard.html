@@ -28,7 +28,8 @@
           <option value="Low">Low</option>
         </select>
         <button id="btn-sync" class="ghost" title="Fetch the latest messages from Gmail">Sync</button>
-        <button id="btn-start" class="primary">Start</button>
+        <button id="btn-start" class="primary" title="Fetch, classify and label">Start</button>
+        <button id="btn-labels" class="ghost" title="Apply Jev/... labels in Gmail from the stored results">Apply labels</button>
         <button id="btn-export" class="ghost" title="Download the table as CSV">Export</button>
         <button id="btn-settings" class="icon" title="Settings" aria-label="Settings">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -136,6 +137,22 @@
               <span class="hint">Sends anything Jev has not seen yet, up to 40 rows at a time. Turn this off to show only what a dashboard run already produced.</span>
             </span>
           </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Labels</legend>
+          <label>
+            Confidence threshold
+            <span class="hint">Below this, an email only gets <code>Jev/Review</code> and nothing else happens to it. Between 0.5 and 1; default 0.75.</span>
+            <input id="s-threshold" type="number" min="0.5" max="1" step="0.05" />
+          </label>
+          <label class="check">
+            <input id="s-archive" type="checkbox" />
+            <span>Archive after labeling
+              <span class="hint">Removes the email from the inbox so it only shows under its <code>Jev/</code> label. Only for the categories ticked below. Archived mail stays in All Mail.</span>
+            </span>
+          </label>
+          <div class="checks" id="s-archive-cats"></div>
         </fieldset>
 
         <fieldset>

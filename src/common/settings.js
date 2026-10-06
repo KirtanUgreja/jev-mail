@@ -61,7 +61,12 @@ export const DEFAULTS = {
   // In-Gmail overlay. Works without any Google Cloud setup: the sender, subject
   // and preview line come straight out of Gmail's DOM.
   overlayEnabled: true,
-  overlayAutoClassify: true
+  overlayAutoClassify: true,
+  // Labels. Below this confidence an email only gets Jev/Review.
+  confidenceThreshold: 0.75,
+  // Remove INBOX after labeling, only for the categories listed.
+  archiveAfterLabeling: false,
+  archiveCategories: []
 };
 
 export async function loadSettings() {

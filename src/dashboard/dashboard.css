@@ -425,6 +425,14 @@ label.check input {
 }
 label.check .hint { margin-top: 3px; }
 
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px 12px;
+  margin: 8px 0 0 25px;
+  font-size: 12.5px;
+}
+
 .hint {
   display: block;
   color: var(--ink-3);

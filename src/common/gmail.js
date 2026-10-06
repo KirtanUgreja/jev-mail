@@ -180,6 +180,47 @@ export async function getMessage(id, { signal } = {}) {
   };
 }
 
+/* ---------------------------------------------------------------- writes */
+
+export async function listLabels({ signal } = {}) {
+  return (await call('/labels', { signal })).labels || [];
+}
+
+export async function createLabel(name, { signal } = {}) {
+  return call('/labels', {
+    method: 'POST',
+    body: { name, labelListVisibility: 'labelShow', messageListVisibility: 'show' },
+    signal
+  });
+}
+
+// Gmail accepts up to 1,000 ids per batchModify.
+export const BATCH_LIMIT = 1000;
+
+export async function batchModify(ids, { add = [], remove = [] }, { signal } = {}) {
+  if (!ids.length || (!add.length && !remove.length)) return;
+  if (ids.length > BATCH_LIMIT) throw new Error(`batchModify takes at most ${BATCH_LIMIT} ids`);
+  await call('/messages/batchModify', {
+    method: 'POST',
+    body: { ids, addLabelIds: add, removeLabelIds: remove },
+    signal
+  });
+}
+
+/** Moves to Trash, which Gmail empties after 30 days. There is no permanent delete here. */
+export async function trashMessage(id, { signal } = {}) {
+  return call(`/messages/${id}/trash`, { method: 'POST', signal });
+}
+
+export async function untrashMessage(id, { signal } = {}) {
+  return call(`/messages/${id}/untrash`, { method: 'POST', signal });
+}
+
+/** Current labels of one message, for checks that must not trust stored data. */
+export async function getLabelIds(id, { signal } = {}) {
+  return (await call(`/messages/${id}?format=minimal`, { signal })).labelIds || [];
+}
+
 /**
  * Plain text of a message's body, for classification only. Never stored: the
  * caller passes it straight to Jev and drops it. Prefers text/plain, falls back
