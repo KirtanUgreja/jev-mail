@@ -183,6 +183,34 @@ Jev/Review
 - If a later run changes an email's category or priority, the old `Jev/` labels
   are removed. Labels you made yourself are never touched.
 
+## Cleanup
+
+Cleanup is built never to lose an email you wanted:
+
+- **Trash only.** It uses `users.messages.trash`; Gmail empties Trash after 30
+  days. The extension doesn't hold a scope that could delete permanently.
+- **Preview first.** **Clean up (preview)** lists the candidates (sender,
+  subject, reason, confidence) with checkboxes. **Nothing is pre-selected and
+  nothing is trashed until you confirm.** **By sender** groups them ("142 emails
+  from promo@shop.com") so you can approve a whole sender with one tick.
+- **Candidates** need `junk = yes` with confidence ≥ the **cleanup threshold**
+  (default 0.9).
+- **Never touched**, whatever Jev says:
+  - starred emails, and emails Gmail marked important
+  - `important = yes`, `needs_reply = yes`, or priority High
+  - **protected categories** (default Finance/Invoices, Security/Alerts)
+  - **protected senders** (an address or a whole domain)
+  - emails newer than the **minimum age** (default 7 days)
+  - low-confidence results (those only go to `Jev/Review`)
+  - genuine service notices: the `service_notice` signal is high and the spam
+    signal is low
+- **Re-checked live.** Right before trashing, each email's labels are re-read
+  from Gmail, so one you starred since the last sync is skipped.
+- **Undo last cleanup** restores the last batch with `users.messages.untrash`.
+  If some fail, press it again to retry the rest.
+- **Log.** Every batch is logged locally (date, sender, subject, message ID —
+  never bodies) under `cleanupLog` in `chrome.storage.local`, last 100 batches.
+
 ## How the classification works
 
 Spam is never asked as a question. Jev reads instructions literally and gets

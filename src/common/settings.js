@@ -66,7 +66,14 @@ export const DEFAULTS = {
   confidenceThreshold: 0.75,
   // Remove INBOX after labeling, only for the categories listed.
   archiveAfterLabeling: false,
-  archiveCategories: []
+  archiveCategories: [],
+  // Cleanup. Only junk at or above this confidence is offered.
+  cleanupThreshold: 0.9,
+  cleanupMinAgeDays: 7,
+  // Senders or domains never cleaned up: 'boss@acme.com', 'acme.com'.
+  protectedSenders: [],
+  // Categories never cleaned up, whatever Jev says.
+  protectedCategories: ['Finance/Invoices', 'Security/Alerts']
 };
 
 export async function loadSettings() {

@@ -1,0 +1,34 @@
+/* Cleanup preview. Uses the colour tokens of the page that includes it. */
+.cleanup-dialog { width: min(860px, calc(100vw - 32px)); }
+.cleanup-dialog > div > .hint { margin: 12px 20px 0; }
+.cp-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 20px 8px; }
+.cp-bar .spacer { flex: 1; }
+.cp-tabs { display: inline-flex; gap: 4px; }
+.cp-tabs .on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.cp-count { color: var(--ink-3); font-size: 12px; }
+.cp-list { max-height: min(56vh, 520px); overflow: auto; padding: 0 20px 8px; border-bottom: 1px solid var(--line); }
+.cp-list details { border-top: 1px solid var(--line); }
+.cp-list details[open] { padding-bottom: 6px; }
+.cp-group { display: flex; align-items: center; gap: 8px; padding: 9px 0; cursor: pointer; font-size: 13px; }
+.cp-group input, .cp-item input { width: auto; margin: 0; accent-color: var(--accent); flex: none; }
+.cp-group-n { font-weight: 600; min-width: 2.2em; text-align: right; }
+.cp-item {
+  display: grid;
+  grid-template-columns: 18px minmax(90px, 1.2fr) minmax(120px, 3fr) minmax(90px, 1.6fr) 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 12.5px;
+  border-top: 1px solid var(--line);
+}
+details .cp-item { padding-left: 26px; grid-template-columns: 18px minmax(90px, 1.2fr) minmax(120px, 3fr) minmax(90px, 1.6fr) 42px; }
+.cp-item > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-from { font-weight: 500; }
+.cp-reason { color: var(--ink-3); }
+.cp-conf { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+button.danger { background: #b91c1c; color: #fff; border-color: #b91c1c; font-weight: 500; }
+button.danger:disabled { opacity: .45; cursor: default; }
+@media (max-width: 560px) {
+  .cp-item, details .cp-item { grid-template-columns: 18px 1fr 42px; }
+  .cp-subject, .cp-reason { display: none; }
+}

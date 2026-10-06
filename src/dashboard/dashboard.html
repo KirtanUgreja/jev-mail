@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>Jev Mail</title>
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="../common/cleanup-preview.css" />
   </head>
   <body>
     <header class="topbar">
@@ -30,6 +31,8 @@
         <button id="btn-sync" class="ghost" title="Fetch the latest messages from Gmail">Sync</button>
         <button id="btn-start" class="primary" title="Fetch, classify and label">Start</button>
         <button id="btn-labels" class="ghost" title="Apply Jev/... labels in Gmail from the stored results">Apply labels</button>
+        <button id="btn-cleanup" class="ghost" title="Preview junk that is safe to move to Trash. Nothing happens until you confirm.">Clean up (preview)</button>
+        <button id="btn-undo" class="ghost" title="Restore the last cleanup from Trash" disabled>Undo last cleanup</button>
         <button id="btn-export" class="ghost" title="Download the table as CSV">Export</button>
         <button id="btn-settings" class="icon" title="Settings" aria-label="Settings">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -156,6 +159,28 @@
         </fieldset>
 
         <fieldset>
+          <legend>Cleanup</legend>
+          <span class="hint">Cleanup only ever moves mail to Trash, after you confirm a preview. Starred, Gmail-important, important, needs-reply and High-priority emails are always skipped.</span>
+          <label>
+            Cleanup threshold
+            <span class="hint">Only junk Jev is at least this sure about is offered. Default 0.9.</span>
+            <input id="s-cleanup-threshold" type="number" min="0.5" max="1" step="0.01" />
+          </label>
+          <label>
+            Minimum age (days)
+            <span class="hint">Emails newer than this are never offered. Default 7.</span>
+            <input id="s-min-age" type="number" min="0" step="1" />
+          </label>
+          <label>
+            Protected senders
+            <span class="hint">One per line: an address (<code>boss@acme.com</code>) or a domain (<code>acme.com</code>, which covers its subdomains). Never cleaned up.</span>
+            <textarea id="s-protected" rows="4" spellcheck="false"></textarea>
+          </label>
+          <span class="hint">Never clean up these categories:</span>
+          <div class="checks" id="s-protected-cats"></div>
+        </fieldset>
+
+        <fieldset>
           <legend>Categories</legend>
           <span class="hint">One per line, <code>Name: what belongs in it</code>. The description is the rubric Jev scores against, so be specific.</span>
           <textarea id="s-categories" rows="12" spellcheck="false"></textarea>
@@ -169,6 +194,8 @@
         </footer>
       </form>
     </dialog>
+
+    <dialog id="cleanup" class="cleanup-dialog"><div id="cleanup-body"></div></dialog>
 
     <dialog id="logdialog">
       <h2>Issues</h2>

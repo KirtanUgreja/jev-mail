@@ -4,6 +4,8 @@ import { getAllEmails, clearEmails } from '../common/db.js';
 import { checkKey, explainSpam } from '../common/jev.js';
 import { syncInbox, classifyAll } from '../common/pipeline.js';
 import { applyLabels } from '../common/labels.js';
+import { findCandidates, groupBySender, trashConfirmed, undoLast, lastUndoable } from '../common/cleanup.js';
+import { renderCleanupPreview } from '../common/cleanup-preview.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -81,6 +83,9 @@ function wireEvents() {
   }
 
   $('btn-labels').addEventListener('click', onApplyLabels);
+  $('btn-cleanup').addEventListener('click', openCleanupPreview);
+  $('btn-undo').addEventListener('click', onUndoCleanup);
+  refreshUndo();
   $('s-cancel').addEventListener('click', () => $('settings').close());
   $('s-save').addEventListener('click', saveSettingsFromForm);
   $('s-test-openrouter').addEventListener('click', () => testJevKey('openrouter'));
@@ -118,6 +123,52 @@ async function onStartStop() {
     await doClassify();
     await doLabels();
   });
+}
+
+/* ------------------------------------------------------------------ cleanup */
+
+function openCleanupPreview() {
+  if (state.running) return;
+  const candidates = findCandidates([...state.emails.values()], state.settings);
+  renderCleanupPreview($('cleanup-body'), {
+    candidates,
+    groups: groupBySender(candidates),
+    onCancel: () => $('cleanup').close(),
+    onConfirm: (ids) => {
+      $('cleanup').close();
+      runGuarded(async () => {
+        const out = await trashConfirmed(ids, state.emails, state.settings, {
+          onEvent: handleEvent,
+          signal: state.controller.signal
+        });
+        for (const row of out.rows) state.emails.set(row.id, row);
+        for (const s of out.skipped) pushIssue(`Not trashed (${s.reason}): ${state.emails.get(s.id)?.subject || s.id}`);
+        setStatus(
+          `Moved ${out.trashed.length} to Trash` +
+            (out.skipped.length ? `, skipped ${out.skipped.length}` : '') +
+            (out.trashed.length ? '. Press "Undo last cleanup" to restore them.' : '.')
+        );
+      }).then(refreshUndo);
+    }
+  });
+  $('cleanup').showModal();
+}
+
+async function onUndoCleanup() {
+  await runGuarded(async () => {
+    const out = await undoLast(state.emails, { onEvent: handleEvent, signal: state.controller.signal });
+    for (const row of out.rows) state.emails.set(row.id, row);
+    for (const f of out.failed) pushIssue(`Not restored (${f.reason}): ${f.id}`);
+    setStatus(`Restored ${out.restored.length} from Trash` + (out.failed.length ? `, ${out.failed.length} failed — press Undo again to retry.` : '.'));
+  });
+  await refreshUndo();
+}
+
+async function refreshUndo() {
+  const last = await lastUndoable();
+  const n = last ? last.items.filter((i) => !i.restoredAt).length : 0;
+  $('btn-undo').disabled = !last || state.running;
+  $('btn-undo').textContent = n ? `Undo last cleanup (${n})` : 'Undo last cleanup';
 }
 
 async function onApplyLabels() {
@@ -212,6 +263,10 @@ function handleEvent(evt) {
           ? `Fetching messages… ${evt.done} / ${evt.total}`
           : evt.phase === 'label'
           ? `Labeling… ${evt.done} / ${evt.total}`
+          : evt.phase === 'trash'
+          ? `Moving to Trash… ${evt.done} / ${evt.total}`
+          : evt.phase === 'untrash'
+          ? `Restoring from Trash… ${evt.done} / ${evt.total}`
           : `Classifying… ${evt.done} / ${evt.total}${evt.inputTokens ? ` · ${formatCost(evt.inputTokens)}` : ''}`
       );
       break;
@@ -519,6 +574,8 @@ function setRunning(running) {
   start.dataset.state = running ? 'running' : '';
   $('btn-sync').disabled = running;
   $('btn-labels').disabled = running;
+  $('btn-cleanup').disabled = running;
+  if (running) $('btn-undo').disabled = true;
   $('btn-settings').disabled = running;
 }
 
@@ -578,22 +635,28 @@ function openSettings() {
   $('s-overlay-auto').checked = s.overlayAutoClassify;
   $('s-threshold').value = s.confidenceThreshold;
   $('s-archive').checked = s.archiveAfterLabeling;
-  $('s-archive-cats').replaceChildren(...s.categories.map((c) => {
-    const label = document.createElement('label');
-    label.className = 'check';
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.value = c.name;
-    box.checked = s.archiveCategories.includes(c.name);
-    label.append(box, document.createTextNode(` ${c.name}`));
-    return label;
-  }));
+  $('s-archive-cats').replaceChildren(...s.categories.map((c) => categoryCheck(c.name, s.archiveCategories.includes(c.name))));
+  $('s-cleanup-threshold').value = s.cleanupThreshold;
+  $('s-min-age').value = s.cleanupMinAgeDays;
+  $('s-protected').value = s.protectedSenders.join('\n');
+  $('s-protected-cats').replaceChildren(...s.categories.map((c) => categoryCheck(c.name, s.protectedCategories.includes(c.name))));
   $('s-categories').value = s.categories.map((c) => `${c.name}: ${c.description || ''}`.trim()).join('\n');
   for (const id of ['openrouter', 'typesafe']) {
     $(`s-test-result-${id}`).textContent = '';
     $(`s-test-result-${id}`).className = 'test-result';
   }
   $('settings').showModal();
+}
+
+function categoryCheck(name, checked) {
+  const label = document.createElement('label');
+  label.className = 'check';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.value = name;
+  box.checked = checked;
+  label.append(box, document.createTextNode(` ${name}`));
+  return label;
 }
 
 function parseCategories(text) {
@@ -624,7 +687,14 @@ async function saveSettingsFromForm() {
     categories: parseCategories($('s-categories').value),
     confidenceThreshold: clamp(Number($('s-threshold').value) || DEFAULTS.confidenceThreshold, 0.5, 1),
     archiveAfterLabeling: $('s-archive').checked,
-    archiveCategories: [...$('s-archive-cats').querySelectorAll('input:checked')].map((b) => b.value)
+    archiveCategories: [...$('s-archive-cats').querySelectorAll('input:checked')].map((b) => b.value),
+    cleanupThreshold: clamp(Number($('s-cleanup-threshold').value) || DEFAULTS.cleanupThreshold, 0.5, 1),
+    // An emptied field means the default, not "no minimum".
+    cleanupMinAgeDays: $('s-min-age').value.trim() === ''
+      ? DEFAULTS.cleanupMinAgeDays
+      : Math.max(0, Math.round(Number($('s-min-age').value) || 0)),
+    protectedSenders: $('s-protected').value.split('\n').map((l) => l.trim()).filter(Boolean),
+    protectedCategories: [...$('s-protected-cats').querySelectorAll('input:checked')].map((b) => b.value)
   });
 
   // A token minted for another client is useless to this one.
