@@ -1,5 +1,6 @@
 // Two jobs:
-//   1. Open the dashboard tab. The full-inbox pipeline runs there, not here —
+//   1. Open the side panel from the toolbar icon (the dashboard where the
+//      browser has no side panel API), and the dashboard on first install. The full-inbox pipeline runs there, not here —
 //      MV3 kills idle workers and a full pass takes minutes.
 //   2. Serve the Gmail content script, which cannot reach the extension's
 //      IndexedDB or the Jev key on its own. Its batches are small (whatever is
@@ -29,6 +30,11 @@ async function openDashboard() {
   await chrome.tabs.create({ url: DASHBOARD_URL });
 }
 
+// With a side panel, Chrome opens it on toolbar click by itself and never
+// fires onClicked. Without one, onClicked opens the dashboard instead.
+if (chrome.sidePanel?.setPanelBehavior) {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((err) => console.error('[jev-mail]', err));
+}
 chrome.action.onClicked.addListener(() => {
   openDashboard().catch((err) => console.error('[jev-mail]', err));
 });
@@ -46,6 +52,8 @@ const summarize = (result) => ({
   priority: result.priority,
   spam: result.spam,
   reply: result.reply,
+  important: result.important ?? null,
+  junk: result.junk ?? null,
   confidence: result.categoryConfidence,
   why: explainSpam(result)
 });

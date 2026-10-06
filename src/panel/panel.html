@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Jev Mail</title>
+    <link rel="stylesheet" href="../dashboard/dashboard.css" />
+    <link rel="stylesheet" href="../common/cleanup-preview.css" />
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body class="panel">
+    <header class="p-head">
+      <b>Jev Mail</b>
+      <span class="spacer"></span>
+      <button id="p-dashboard" class="linkish" type="button">Dashboard</button>
+      <button id="p-settings" class="linkish" type="button">Settings</button>
+    </header>
+
+    <section class="p-actions">
+      <button id="p-classify" class="primary" type="button" title="Fetch new mail, classify it, and apply Jev/... labels">Classify inbox</button>
+      <button id="p-labels" class="ghost" type="button" title="Apply Jev/... labels from stored results">Apply labels</button>
+      <button id="p-cleanup" class="ghost" type="button" title="Preview junk that is safe to move to Trash">Clean up (preview)</button>
+      <button id="p-undo" class="ghost" type="button" disabled title="Restore the last cleanup from Trash">Undo last cleanup</button>
+    </section>
+
+    <div class="p-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div id="p-bar"></div></div>
+    <p id="p-status" class="p-status" aria-live="polite">Loading…</p>
+    <p id="p-error" class="p-error" hidden></p>
+
+    <section class="p-counts">
+      <h3>Priority</h3>
+      <div id="p-priority" class="p-tiles"></div>
+      <h3>Categories</h3>
+      <ul id="p-categories" class="p-bars"></ul>
+      <p id="p-totals" class="hint"></p>
+    </section>
+
+    <dialog id="p-cleanup-dialog" class="cleanup-dialog"><div id="p-cleanup-body"></div></dialog>
+
+    <script type="module" src="panel.js"></script>
+  </body>
+</html>

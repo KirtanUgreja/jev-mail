@@ -5,7 +5,7 @@
    so Gmail's subject and preview ellipsis before they collide. */
 td.jev-host {
   position: relative !important;
-  padding-right: 246px !important;
+  padding-right: 272px !important;
 }
 
 .jev-badges {
@@ -40,6 +40,9 @@ td.jev-host {
 .jev-pri { background: #f1f0ee; color: #6b6762; }
 .jev-pri.jev-Medium { background: #e4edfd; color: #1a56db; }
 .jev-pri.jev-High { background: #fdf0d4; color: #9a5b00; }
+.jev-flag { padding: 0 5px !important; font-weight: 600; }
+.jev-imp { background: #fde8e8; color: #b42318; }
+.jev-reply { background: #e6f4ea; color: #137333; }
 
 .jev-m {
   background: transparent;
@@ -68,6 +71,8 @@ td.jev-host {
 .jev-dark .jev-pri { background: #302d2a; color: #a9a49c; }
 .jev-dark .jev-pri.jev-Medium { background: #1e2a44; color: #9dbcfb; }
 .jev-dark .jev-pri.jev-High { background: #3a2f14; color: #fbbf24; }
+.jev-dark .jev-imp { background: #3d1a1a; color: #fca5a5; }
+.jev-dark .jev-reply { background: #16301f; color: #86efac; }
 .jev-dark .jev-m { color: #8b867f; }
 .jev-dark .jev-m.jev-mid { color: #f0a142; }
 .jev-dark .jev-m.jev-hot { color: #fb923c; }

@@ -6,6 +6,7 @@
   "minimum_chrome_version": "116",
   "permissions": [
     "identity",
+    "sidePanel",
     "storage",
     "unlimitedStorage"
   ],
@@ -16,6 +17,9 @@
     "https://openrouter.ai/*",
     "https://api.typesafe.ai/*"
   ],
+  "side_panel": {
+    "default_path": "src/panel/panel.html"
+  },
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"

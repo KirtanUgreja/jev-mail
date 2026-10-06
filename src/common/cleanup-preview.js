@@ -76,7 +76,7 @@ export function renderCleanupPreview(container, { candidates, groups, onConfirm,
         const summary = el('summary', { class: 'cp-group' },
           box,
           el('span', { class: 'cp-group-n', text: String(g.items.length) }),
-          el('span', { text: `email${g.items.length === 1 ? '' : 's'} from ` }),
+          el('span', { text: ` email${g.items.length === 1 ? '' : 's'} from ` }),
           el('b', { text: g.fromEmail })
         );
         list.append(el('details', {}, summary, ...g.items.map(itemRow)));

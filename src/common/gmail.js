@@ -22,7 +22,7 @@ async function call(path, { signal, method = 'GET', body } = {}) {
     try {
       token = await getToken({ interactive: false });
     } catch (err) {
-      throw new Error(`Not signed in to Gmail. Press Start (or Sign in) to connect. (${err.message})`);
+      throw new Error(`Not signed in to Gmail. Press Start (dashboard) or Classify inbox (side panel) to sign in. (${err.message})`);
     }
     const res = await fetch(`${BASE}${path}`, {
       method,
@@ -65,7 +65,7 @@ async function call(path, { signal, method = 'GET', body } = {}) {
     }
 
     if (res.status === 401) {
-      throw new Error('Not signed in to Gmail: the session expired. Press Start (or Sign in) to reconnect.');
+      throw new Error('Not signed in to Gmail: the session expired. Press Start (dashboard) or Classify inbox (side panel) to sign in again.');
     }
     if (res.status === 403 && !rateLimited) {
       throw new Error('Gmail permission denied (403). Sign out under Settings → Gmail, then sign in again and allow every requested permission.');

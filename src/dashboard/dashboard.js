@@ -6,6 +6,7 @@ import { syncInbox, classifyAll } from '../common/pipeline.js';
 import { applyLabels } from '../common/labels.js';
 import { findCandidates, groupBySender, trashConfirmed, undoLast, lastUndoable } from '../common/cleanup.js';
 import { renderCleanupPreview } from '../common/cleanup-preview.js';
+import { acquire, release } from '../common/run-lock.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,6 +43,8 @@ async function init() {
   state.connected = await probeConnection();
   updateOnboarding();
   setStatus(state.emails.size ? 'Ready.' : 'Ready. Hit Start to pull your inbox and classify it.');
+  // The side panel's Settings link lands here.
+  if (location.hash === '#settings') openSettings();
 }
 
 async function probeConnection() {
@@ -184,6 +187,11 @@ async function doLabels() {
 
 async function runGuarded(task) {
   if (state.running) return;
+  const lock = await acquire('the dashboard');
+  if (!lock.ok) {
+    setStatus(`Busy: a run is already going in ${lock.holder}. Wait for it to finish.`);
+    return;
+  }
   state.running = true;
   state.controller = new AbortController();
   state.issues = [];
@@ -191,6 +199,8 @@ async function runGuarded(task) {
   setRunning(true);
 
   try {
+    // The side panel may have changed rows since this page loaded.
+    for (const row of await getAllEmails()) state.emails.set(row.id, row);
     await ensureConnected();
     // Start the clock after authorization, so time spent in Google's consent
     // popup doesn't count toward the run.
@@ -204,6 +214,7 @@ async function runGuarded(task) {
       pushIssue(err.message);
     }
   } finally {
+    await release();
     state.running = false;
     setRunning(false);
     setProgress(0);

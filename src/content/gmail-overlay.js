@@ -128,12 +128,14 @@
       return;
     }
 
-    group.append(
+    const reply = summary.reply ?? 0;
+    group.append(...[
       chip('jev-cat', summary.category, summary.confidence != null ? `confidence ${Math.round(summary.confidence * 100)}%` : ''),
       chip(`jev-pri jev-${summary.priority}`, summary.priority, 'Priority'),
-      withTitle(metric('S', summary.spam ?? 0), summary.why),
-      metric('R', summary.reply ?? 0)
-    );
+      (summary.important ?? 0) >= 0.5 ? chip('jev-flag jev-imp', '!', `Important ${Math.round(summary.important * 100)}%`) : null,
+      reply >= 0.5 ? chip('jev-flag jev-reply', '↩', `Needs a reply: ${Math.round(reply * 100)}%`) : metric('R', reply),
+      withTitle(metric('S', summary.spam ?? 0), summary.why)
+    ].filter(Boolean));
   }
 
   function withTitle(el, extra) {

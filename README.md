@@ -5,12 +5,18 @@ A Chrome extension that scores every message in your Gmail with
 [OpenRouter](https://openrouter.ai/typesafe/jev-1.13) key — **category**, **priority**,
 **spam %** and **reply %** (how much the message needs an answer from you).
 
-Two ways to see it:
+Three ways to use it:
 
-- **Inline in Gmail** — badges appended to each row of your real thread list.
-  Needs nothing but a TypeSafe or OpenRouter API key.
+- **Inline in Gmail** — badges on each row of your real thread list: category,
+  priority, `!` when important, `↩` when it needs a reply (otherwise Reply %),
+  and Spam %. Needs nothing but a TypeSafe or OpenRouter API key.
+- **The side panel** — click the toolbar icon. Counts by category and priority,
+  **Classify inbox**, **Apply labels**, **Clean up (preview)**, **Undo last
+  cleanup**, and a progress bar. Needs a Gmail API OAuth client. (In a browser
+  without the side panel API, the icon opens the dashboard instead.)
 - **The dashboard** — the whole inbox in one sortable, filterable, exportable
-  table. Needs a Gmail API OAuth client.
+  table, with the same actions and all the settings. Needs a Gmail API OAuth
+  client.
 
 It never sends mail and never deletes permanently. With Gmail connected it can
 label, archive and move to Trash — always reversible (see [Gmail access](#gmail-access-and-the-restricted-scope)).
@@ -321,7 +327,7 @@ damaging the page — it only ever appends one `<span>` per row and never remove
 or reorders anything Gmail drew. The selectors are collected in `SEL` at the top
 of `src/content/gmail-overlay.js` so there is one place to fix.
 
-Two known limits: the badges reserve 246px at the right of the subject cell, so
+Two known limits: the badges reserve 272px at the right of the subject cell, so
 long subjects ellipsis earlier than they used to; and two emails with an
 identical sender *and* subject (a daily report, say) share one classification.
 
@@ -329,20 +335,26 @@ identical sender *and* subject (a daily report, say) share one classification.
 
 ```
 manifest.json
-src/background/service-worker.js   opens the dashboard; serves the content script
-src/common/auth.js                 Gmail OAuth (chrome.identity)
-src/common/gmail.js                message list + metadata, retry/backoff
+src/background/service-worker.js   side panel / dashboard on toolbar click; serves the content script
+src/common/auth.js                 Gmail OAuth (chrome.identity), gmail.modify + gmail.labels
+src/common/gmail.js                list, metadata, body excerpt, labels, batchModify, trash/untrash; retry/backoff
+src/common/labels.js               Jev/... labels: create, plan, batch apply
+src/common/cleanup.js              cleanup vetoes, candidates, trash, undo, log
+src/common/cleanup-preview.js      the confirm-before-trash checklist (dashboard + panel)
+src/common/run-lock.js             one bulk run at a time across pages
 src/common/jev.js                  questions, state shaping, Jev HTTP client
 src/common/pipeline.js             worker pool: fetch → classify → store
 src/common/db.js                   IndexedDB, one record per email
 src/common/key.js                  the sender+subject key shared by both views
 src/common/settings.js             defaults + chrome.storage.local
 src/content/                       the in-Gmail overlay
-src/dashboard/                     the table UI
+src/dashboard/                     the table UI and settings
+src/panel/                         the side panel
 ```
 
-The full-inbox pipeline deliberately runs in the dashboard page rather than the
-service worker: MV3 terminates idle workers, and a few thousand emails take
+Bulk runs (classify, label, clean up) run in the dashboard or side panel page,
+never the service worker, and only one at a time across both. The reason for
+not using the service worker: MV3 terminates idle workers, and a few thousand emails take
 longer than that budget. The page lives as long as its tab does. The overlay's
 batches are small enough to serve from the worker.
 
@@ -361,7 +373,7 @@ consent screen, or signed in before this version asked for `gmail.modify`.
 Use **Settings → Gmail → Sign out of Gmail**, then sign in again and allow
 everything. Also check both scopes are listed on the consent screen.
 
-**"Not signed in to Gmail"** — press **Start** (or **Sign in**) to connect.
+**"Not signed in to Gmail"** — press **Start** in the dashboard or **Classify inbox** in the side panel to sign in.
 
 **"Access blocked" or other Gmail authorization failures** — check that the
 client type is *Web application* and that your account is listed under the
